@@ -1,0 +1,109 @@
+# Standard lambda functions
+K  = a -> b -> a                    # Kestrel       : select first arg
+I  = a -> a                         # Idiot         : the identity
+KI = K I                            # Kite          : select second arg
+M  = f -> f f                       # Mockingbird   : apply function twice
+C  = f -> a -> b -> f b a           # Cardinal      : take a function with two arg, and swap them
+B  = f -> g -> a -> f (g a)         # Bluebird      : compose function f and g
+B1 = B B B                          # Blackbird     : compose function f and g (g has two arguments)
+Th = C I                            # Thrush        : reverse order of functions
+V  = a -> b -> f -> f a b           # Vireo         : "stores a and b to be applied to a function f later"
+
+
+# Pair
+pair = V
+fst  = p -> p K
+snd  = p -> p KI
+
+
+# Triplet
+triplet = a -> b -> c -> f -> f a b c
+tri_fst = t -> t (B1 K K)
+tri_snd = t -> t (B1 K KI)
+tri_thd = t -> t (B1 KI KI)
+
+
+# Booleans
+true  = K
+false = KI
+
+!  = C
+&& = p -> q -> p q p
+|| = M
+b= = p -> q -> p q (! q)
+
+
+# Church numerals
+++ = n -> f -> B f (n f)
++ = n -> k -> n ++ k
+* = B
+^ = Th
+
+0  = f -> a -> a
+1  = ++ 0
+2  = ++ 1
+3  = ++ 2
+4  = + 2 2
+5  = + 2 3
+6  = + 3 3
+7  = + 3 4
+8  = + 4 4
+9  = + 4 5
+10 = * 2 5
+
+11 = ++ 10
+23 = + (* 11 2) 1
+47 = + (* 23 2) 1
+
+is0 = n -> n (K false) true
+
+
+    # From now on, functions will be slow for numbers greater than 8 or 10
+-- = n -> n (g -> is0 (g 1) I (B ++ g)) (K 0) 0
+-  = n -> k -> k -- n
+
+>= = n -> k -> is0 (- k n)
+<= = n -> k -> >= k n
+== = n -> k -> && (>= n k) (<= n k)
+<  = B1 ! >=
+>  = B1 ! <=
+!= = n -> k -> ! (== n k)
+
+
+    # The factorial function
+fact = n -> B1 fst n (              \
+        p -> pair                   \
+            (* (fst p) (snd p))     \
+            (++ (snd p))            \
+    ) (pair 1 1)
+
+
+# Lists
+empty = triplet I I 0               # The empty list
+
+hd  = tri_fst                       # Gets the head of the list
+tl  = tri_snd                       # Gets the tail of the list
+len = tri_thd                       # Gets the length of the list
+
+push = list -> elem -> triplet elem list (++ (len list))
+pop  = tl
+
+    # fun: function that takes two arguments: an accumulator and an element of the list 
+    # it will be executed for each element in the list
+collect = list -> fun -> acc ->     \
+    B1 fst (len list) (p -> pair    \
+        (fun (fst p) (B hd snd p))  \
+        (B tl snd p)                \
+    ) (pair acc list)
+
+
+list_sum = list -> collect list + 0
+
+
+    # A dummy list to test things
+# [1,2,3,4,5,6] = push empty         6
+# [1,2,3,4,5,6] = push [1,2,3,4,5,6] 5
+# [1,2,3,4,5,6] = push [1,2,3,4,5,6] 4
+# [1,2,3,4,5,6] = push [1,2,3,4,5,6] 3
+# [1,2,3,4,5,6] = push [1,2,3,4,5,6] 2
+# [1,2,3,4,5,6] = push [1,2,3,4,5,6] 1
