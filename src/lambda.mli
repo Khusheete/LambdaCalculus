@@ -21,7 +21,10 @@ type expr =
   | Apply of expr * expr
   | Lambda of string * expr
   | Group of expr
-type statement = string * expr
+
+type statement =
+  | Lazy  of string * expr
+  | Eager of string * expr
 
 exception UndefinedVariable of string
 
@@ -32,4 +35,5 @@ end
 
 
 val print_expr : expr -> unit
+val print_raw_expr : expr -> unit
 val print_statement : statement -> unit

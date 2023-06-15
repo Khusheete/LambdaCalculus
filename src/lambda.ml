@@ -24,7 +24,10 @@ type expr =
 ;;
 
 
-type statement = string * expr;;
+type statement =
+  | Lazy  of string * expr
+  | Eager of string * expr
+;;
 
 exception UndefinedVariable of string;;
 
@@ -96,8 +99,9 @@ let print_raw_expr exp =
 ;;
 
 
-let print_statement s = match s with (v, l) ->
-  Printf.printf "%s = %s" v (expr_raw_to_str l)
+let print_statement = function
+  | Lazy(name, expr)  -> Printf.printf "%s := %s" name (expr_raw_to_str expr)
+  | Eager(name, expr) -> Printf.printf "%s = %s" name (expr_raw_to_str expr)
 ;;
 
 
@@ -172,11 +176,13 @@ let substitute dst var src defined =
 ;;
 
 
-let beta_reduce exp defined = 
+let eager_beta_reduce exp defined =
   let rec _reduce exp defined =
     (* print_expr exp; print_newline (); *)
     match exp with
-    | Apply(Lambda(v, e), arg) -> let (r, _) = _reduce (substitute e v arg defined) defined in (r, true)
+    | Apply(Lambda(v, e), arg) ->
+      let (rarg, _) = _reduce arg defined in
+      let (r, _) = _reduce (substitute e v rarg defined) defined in (r, true)
     | Apply(e1, e2) ->
       let (re1, m1) = _reduce e1 defined in
       let (re2, m2) = _reduce e2 defined in
@@ -192,6 +198,32 @@ let beta_reduce exp defined =
 ;;
 
 
+let lazy_beta_reduce exp defined = 
+  let rec _reduce exp defined =
+    (* print_expr exp; print_newline (); *)
+    match exp with
+    | Apply(Lambda(v, e), arg) -> let (r, _) = _reduce (substitute e v arg defined) defined in (r, true)
+    | Apply(e1, e2) ->
+      let (re1, m1) = _reduce e1 defined in
+      (* let (re2, m2) = _reduce e2 defined in *)
+      if m1 then
+        _reduce (Apply(re1, e2)) defined
+      else (
+        (* let (re2, m2) = _reduce e2 defined in
+        (Apply(e1, re2), m2) *)
+        (Apply(e1, e2), false)
+      )
+    | Lambda(v, e) -> let (r, m) = _reduce e (VariableSet.add v defined) in (Lambda(v, r), m)
+    | Group(e) -> _reduce e defined
+    | _ -> (exp, false)
+  in
+  let (r, _) = _reduce exp defined in r
+;;
+
+
+let beta_reduce = lazy_beta_reduce;;
+
+
 (* let kestrel = Lambda("a", Lambda("b", Var("a")));;
 let mockingbird = Lambda("a", Apply(Var "a", Var "a"));;
 let idiot = Lambda("a", Var "a");;
@@ -205,16 +237,24 @@ class context = object (self)
   val mutable cont = VariableSet.empty
 
   method exec (s: statement) =
-    let (name, expr) = s in
+    let (name, expr, b_red) = match s with
+      | Lazy(n, e)  -> (n, e, lazy_beta_reduce)
+      | Eager(n, e) -> (n, e, eager_beta_reduce)
+    in
     let expr = ref @@ beta_reduce expr cont in
     let free = free_var !expr in
+
+    (* Replace all instances of variables by their values*)
     VariableSet.iter (fun name -> 
       if VariableSet.mem name cont then (
         let value = Hashtbl.find vars name in
-        expr := beta_reduce (substitute !expr name value cont) cont;
+        expr := substitute !expr name value cont;
       ) else
         raise (UndefinedVariable name)
     ) free;
+
+    (* Apply the right beta reduction *)
+    expr := b_red !expr cont;
     if name <> "" then (
       cont <- VariableSet.add name cont;
       Hashtbl.add vars name !expr;
@@ -222,5 +262,5 @@ class context = object (self)
     !expr
   
   method print () =
-    Hashtbl.iter (fun name exp -> print_statement (name, exp); print_newline ()) vars
+    Hashtbl.iter (fun name exp -> print_statement (Eager(name, exp)); print_newline ()) vars
 end;;

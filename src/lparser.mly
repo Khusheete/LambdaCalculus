@@ -18,7 +18,7 @@
 
 %token <string> IDENT
 %token FUN
-%token ASSIGN
+%token LAZY_ASSIGN EAGER_ASSIGN
 %token LPAREN RPAREN
 %token EOL EOF
 
@@ -37,8 +37,11 @@ input: statement EOL    { $1 }
     | EOF               { raise End_of_file }
 ;
 
-statement: expr             { ("$arg", $1) }
-    | IDENT ASSIGN expr     { ($1, $3) }
+statement: expr                 { Lambda.Lazy("$arg", $1) }
+    // | LAZY_ASSIGN expr          { Lambda.Lazy("", $2) }
+    // | EAGER_ASSIGN expr         { Lambda.Eager("", $2) }
+    | IDENT LAZY_ASSIGN expr    { Lambda.Lazy($1, $3) }
+    | IDENT EAGER_ASSIGN expr   { Lambda.Eager($1, $3) }
 ;
 
 expr: IDENT                             { Lambda.Var($1) }          // variable

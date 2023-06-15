@@ -33,7 +33,8 @@ rule lambda = parse
     | "->"                      { FUN }
     | '('                       { LPAREN }
     | ')'                       { RPAREN }
-    | '='                       { ASSIGN }
+    | '='                       { LAZY_ASSIGN }
+    | ":="                      { EAGER_ASSIGN }
     | (ident as i)              { IDENT i }
 
 (* TODO: catch when = is in the ident *)
